@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Color system — deep slate with amber accents */
+  --bg-base: #0c0d0f;
+  --bg-surface: #111316;
+  --bg-elevated: #181b1f;
+  --bg-overlay: #1e2228;
+  --bg-hover: rgba(255,255,255,0.04);
+
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-mid: rgba(255,255,255,0.10);
+  --border-strong: rgba(255,255,255,0.16);
+
+  --text-primary: #f0f0ee;
+  --text-secondary: #9a9b9e;
+  --text-tertiary: #5a5c61;
+  --text-inverse: #0c0d0f;
+
+  --accent: #e8a535;
+  --accent-dim: rgba(232,165,53,0.12);
+  --accent-hover: #f0b84a;
+
+  --recording-red: #e84545;
+  --recording-red-dim: rgba(232,69,69,0.12);
+
+  --success: #4caf7d;
+  --success-dim: rgba(76,175,125,0.12);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'DM Mono', 'Fira Code', monospace;
+  --font-sans: 'Geist', -apple-system, sans-serif;
+
+  --sidebar-width: 240px;
+  --titlebar-height: 38px;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.6);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* Allow text selection in content areas */
+.selectable {
+  user-select: text;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* Typography */
+h1, h2, h3 { font-weight: 500; letter-spacing: -0.02em; }
+h1 { font-family: var(--font-serif); font-size: 28px; line-height: 1.2; font-style: italic; }
+h2 { font-size: 18px; }
+h3 { font-size: 15px; }
+
+/* Utilities */
+.mono { font-family: var(--font-mono); }
+.serif { font-family: var(--font-serif); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary { color: var(--text-tertiary); }
+.text-accent { color: var(--accent); }
+
+/* Animations */
+@keyframes pulse-recording {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in { animation: fade-in 0.3s ease forwards; }
+.animate-slide-in { animation: slide-in-right 0.25s ease forwards; }

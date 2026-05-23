@@ -1,0 +1,52 @@
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────────────────────
+dist/
+build/
+frontend/dist/
+frontend/out/
+backend/dist/
+
+# ── Large assets (downloaded/compiled, see scripts/) ──────────
+# model weights (~2-5GB)
+resources/models/
+# compiled whisper-cpp / llama-cli binaries
+resources/bin/
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+# backend/aurenv virtualenv
+aurenv/
+backend/aurenv/
+
+# ── Local data (recordings, SQLite db live in ~/.aurelius) ────
+.aurelius/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# ── Secrets ───────────────────────────────────────────────────
+.env
+*.pem
+*.key
+google_credentials.json
+google_token.json
+
+# ── Editors / OS ──────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
+.claude/
+
+# ── Distributables ────────────────────────────────────────────
+*.dmg
+*.zip
+aurelius-backend.spec

@@ -1,0 +1,285 @@
+.root {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.titlebar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--titlebar-height);
+  -webkit-app-region: drag;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: var(--titlebar-height);
+}
+
+.sidebarTop {
+  padding: 16px 12px 8px;
+  flex-shrink: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.logoIcon {
+  font-size: 16px;
+  color: var(--accent);
+}
+
+.logoText {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-style: italic;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.recordBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-mid);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 12px;
+}
+
+.recordBtn:hover {
+  background: var(--bg-overlay);
+  border-color: var(--border-strong);
+}
+
+.recordBtnActive {
+  background: var(--recording-red-dim);
+  border-color: var(--recording-red);
+  color: var(--recording-red);
+}
+
+.recordDot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--recording-red);
+  animation: pulse-recording 1.5s infinite;
+}
+
+.newMeetingInput {
+  margin-bottom: 12px;
+}
+
+.titleInput {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  outline: none;
+  margin-bottom: 6px;
+}
+
+.newMeetingActions {
+  display: flex;
+  gap: 6px;
+}
+
+.startBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px;
+  background: var(--accent);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancelBtn {
+  padding: 7px 10px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.upcomingSection {
+  margin-bottom: 8px;
+}
+
+.sectionLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
+  padding: 8px 4px 4px;
+  text-transform: uppercase;
+}
+
+.upcomingEvent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.upcomingDot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.upcomingInfo { flex: 1; min-width: 0; }
+.upcomingTitle { font-size: 11px; truncate: true; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upcomingTime { font-size: 10px; color: var(--text-tertiary); font-family: var(--font-mono); }
+
+.joinRecord {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  background: var(--recording-red-dim);
+  color: var(--recording-red);
+  border: 1px solid var(--recording-red);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.meetingList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+
+.meetingItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.1s;
+  gap: 8px;
+}
+
+.meetingItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.meetingItem.active {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+.meetingItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.meetingItemTitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meetingItemDuration {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  gap: 8px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.emptyIcon { opacity: 0.3; margin-bottom: 4px; }
+.emptyHint { font-size: 11px; }
+
+.sidebarBottom {
+  padding: 8px 12px 16px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.1s;
+  width: 100%;
+}
+
+.navItem:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.navItem.navActive { color: var(--text-primary); }
+
+.main {
+  flex: 1;
+  overflow: hidden;
+  padding-top: var(--titlebar-height);
+}
