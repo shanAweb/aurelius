@@ -304,10 +304,14 @@ class CalendarSync:
                     events = await self.get_upcoming_events(hours_ahead=2)
                     for event in events:
                         mins = event.starts_in_minutes()
-                        if mins is not None and 0 <= mins <= self.ALERT_MINUTES:
+                        # Fire when the meeting is actually live (just started or
+                        # in progress), not minutes early — otherwise the silence
+                        # auto-stop could trigger before anyone joins.
+                        live = event.is_happening_now() or (mins is not None and -1 <= mins <= 0.25)
+                        if live:
                             if event.id not in self._alerted_ids:
                                 self._alerted_ids.add(event.id)
-                                logger.info(f"Meeting starting soon: {event.title}")
+                                logger.info(f"Meeting live: {event.title}")
                                 for cb in self._on_meeting_starting:
                                     try:
                                         await cb(event)

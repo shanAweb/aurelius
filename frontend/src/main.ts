@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, systemPreferences, Notification } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { spawn, ChildProcess } from 'child_process'
@@ -135,6 +135,14 @@ function registerIPC() {
 
   // Open external links
   ipcMain.handle('shell:open', (_, url: string) => shell.openExternal(url))
+
+  // Native notification (meeting detected / auto-started while window hidden)
+  ipcMain.handle('notify:show', (_, opts: { title: string; body: string }) => {
+    if (!Notification.isSupported()) return
+    const n = new Notification({ title: opts.title, body: opts.body, silent: false })
+    n.on('click', () => { mainWindow?.show(); mainWindow?.focus() })
+    n.show()
+  })
 
   // Backend health
   ipcMain.handle('backend:health', async () => {

@@ -15,6 +15,7 @@ from audio.capture import AudioCaptureSession
 from transcription.whisper_transcriber import WhisperTranscriber
 from diarization.speaker_diarizer import SpeakerDiarizer
 from notes.generator import NotesGenerator
+from routes.events import broadcast_event
 from db.database import (
     create_meeting, update_meeting, save_transcript_segments,
     save_notes, get_meeting, get_transcript
@@ -70,69 +71,80 @@ class StopRecordingResponse(BaseModel):
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
-@router.post("/start")
-async def start_recording(req: StartRecordingRequest, request: Request):
-    audio_manager = request.app.state.audio_manager
-    meeting_id = str(uuid.uuid4())[:8]
+async def _handle_chunk(meeting_id: str, chunk_path: str, chunk_index: int):
+    """Transcribe a 30s chunk and push it to connected transcript clients."""
+    try:
+        transcriber = get_transcriber()
+        segments = await transcriber.transcribe_chunk(chunk_path, chunk_index)
+        seg_dicts = [s.to_dict() for s in segments]
+        for ws in list(_ws_connections.get(meeting_id, [])):
+            try:
+                await ws.send_json({
+                    "type": "transcript_chunk",
+                    "meeting_id": meeting_id,
+                    "segments": seg_dicts,
+                    "chunk_index": chunk_index,
+                })
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"Chunk transcription error: {e}")
 
-    # Create meeting in DB
+
+async def begin_recording(app, title: str, calendar_event_id: Optional[str] = None,
+                          use_blackhole: bool = True) -> dict:
+    """
+    Start a recording session. Callable from HTTP routes, the calendar
+    auto-start callback, or the instant-meeting detector. Idempotent: if a
+    session is already live, returns it instead of starting a second one.
+    """
+    audio_manager = app.state.audio_manager
+    active = audio_manager.active_session
+    if active and active.is_recording:
+        return {"meeting_id": active.meeting_id, "status": "recording",
+                "title": title, "already_active": True}
+
+    meeting_id = str(uuid.uuid4())[:8]
     await create_meeting(
         meeting_id=meeting_id,
-        title=req.title,
-        source="calendar" if req.calendar_event_id else "manual",
-        calendar_event_id=req.calendar_event_id,
+        title=title,
+        source="calendar" if calendar_event_id else "manual",
+        calendar_event_id=calendar_event_id,
     )
 
-    data_dir = str(request.app.state.__dict__.get("data_dir", "/tmp/aurelius"))
+    data_dir = str(getattr(app.state, "data_dir", "/tmp/aurelius"))
+    loop = asyncio.get_running_loop()
 
-    async def on_chunk(chunk_path: str, chunk_index: int):
-        """Called every 30s with a new audio chunk — transcribe it live."""
-        try:
-            transcriber = get_transcriber()
-            segments = await transcriber.transcribe_chunk(chunk_path, chunk_index)
-            seg_dicts = [s.to_dict() for s in segments]
-
-            # Broadcast to any connected WebSocket clients
-            if meeting_id in _ws_connections:
-                for ws in _ws_connections[meeting_id]:
-                    try:
-                        await ws.send_json({
-                            "type": "transcript_chunk",
-                            "meeting_id": meeting_id,
-                            "segments": seg_dicts,
-                            "chunk_index": chunk_index,
-                        })
-                    except Exception:
-                        pass
-        except Exception as e:
-            logger.error(f"Chunk transcription error: {e}")
+    def on_chunk(chunk_path: str, chunk_index: int):
+        # Called from the audio capture thread → hop back onto the event loop.
+        asyncio.run_coroutine_threadsafe(
+            _handle_chunk(meeting_id, chunk_path, chunk_index), loop
+        )
 
     session = audio_manager.start_session(
         meeting_id=meeting_id,
         output_dir=f"{data_dir}/recordings",
         on_chunk=on_chunk,
-        use_blackhole=req.use_blackhole,
+        use_blackhole=use_blackhole,
     )
     session.start()
 
-    await update_meeting(meeting_id, status="recording", started_at=datetime.now(timezone.utc).isoformat())
+    await update_meeting(meeting_id, status="recording",
+                         started_at=datetime.now(timezone.utc).isoformat())
+    logger.info(f"Recording started: {meeting_id} — '{title}'")
+    return {"meeting_id": meeting_id, "status": "recording", "title": title}
 
-    logger.info(f"Recording started: {meeting_id} — '{req.title}'")
-    return {"meeting_id": meeting_id, "status": "recording", "title": req.title}
 
-
-@router.post("/stop/{meeting_id}")
-async def stop_recording(meeting_id: str, request: Request):
-    audio_manager = request.app.state.audio_manager
+async def end_recording(app, meeting_id: str, reason: str = "manual") -> Optional[dict]:
+    """Stop the active session, kick off processing, and notify the UI."""
+    audio_manager = app.state.audio_manager
     session = audio_manager.active_session
-
-    if not session or session.meeting_id != meeting_id:
-        raise HTTPException(status_code=404, detail="No active recording for this meeting")
+    if not session or session.meeting_id != meeting_id or not session.is_recording:
+        return None
 
     started_at_str = (await get_meeting(meeting_id) or {}).get("started_at")
     audio_path = audio_manager.stop_session()
 
-    # Calculate duration
     duration = 0.0
     if started_at_str:
         started = datetime.fromisoformat(started_at_str)
@@ -145,15 +157,37 @@ async def stop_recording(meeting_id: str, request: Request):
         duration_seconds=int(duration),
         audio_path=audio_path,
     )
+    asyncio.create_task(_process_meeting(meeting_id, audio_path))
+    await broadcast_event({
+        "type": "recording_stopped",
+        "meeting_id": meeting_id,
+        "reason": reason,
+        "duration_seconds": int(duration),
+    })
+    logger.info(f"Recording stopped ({reason}): {meeting_id} — {duration:.0f}s")
+    return {"meeting_id": meeting_id, "status": "processing",
+            "duration_seconds": duration, "reason": reason}
 
-    # Kick off post-processing in background
-    asyncio.create_task(_process_meeting(meeting_id, audio_path, request))
 
-    logger.info(f"Recording stopped: {meeting_id} — {duration:.0f}s")
-    return {"meeting_id": meeting_id, "status": "processing", "duration_seconds": duration}
+@router.post("/start")
+async def start_recording(req: StartRecordingRequest, request: Request):
+    return await begin_recording(
+        request.app,
+        title=req.title,
+        calendar_event_id=req.calendar_event_id,
+        use_blackhole=req.use_blackhole,
+    )
 
 
-async def _process_meeting(meeting_id: str, audio_path: str, request: Request):
+@router.post("/stop/{meeting_id}")
+async def stop_recording(meeting_id: str, request: Request):
+    result = await end_recording(request.app, meeting_id, reason="manual")
+    if result is None:
+        raise HTTPException(status_code=404, detail="No active recording for this meeting")
+    return result
+
+
+async def _process_meeting(meeting_id: str, audio_path: str):
     """Full post-processing pipeline: transcription → diarization → notes."""
     logger.info(f"Processing meeting {meeting_id}...")
 
@@ -200,10 +234,12 @@ async def _process_meeting(meeting_id: str, audio_path: str, request: Request):
                     })
                 except Exception:
                     pass
+        await broadcast_event({"type": "notes_ready", "meeting_id": meeting_id})
 
     except Exception as e:
         logger.error(f"Processing failed for meeting {meeting_id}: {e}")
         await update_meeting(meeting_id, status="error")
+        await broadcast_event({"type": "processing_error", "meeting_id": meeting_id})
 
 
 @router.get("/status/{meeting_id}")

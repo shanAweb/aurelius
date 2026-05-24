@@ -40,3 +40,12 @@ export function createWebSocket(meetingId: string, onMessage: (data: any) => voi
   ws.onerror = (e) => console.error('WS error:', e)
   return ws
 }
+
+// App-level events channel (meeting auto-started, instant meeting detected,
+// recording stopped, notes ready). Connect once while the app is running.
+export function createEventsWebSocket(onMessage: (data: any) => void): WebSocket {
+  const ws = new WebSocket('ws://localhost:8765/events/ws')
+  ws.onmessage = (e) => onMessage(JSON.parse(e.data))
+  ws.onerror = () => { /* reconnect handled by caller */ }
+  return ws
+}

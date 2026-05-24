@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Mic, Calendar, Clock, Settings, Plus, Circle, LogOut } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import { format, isToday, isYesterday } from 'date-fns'
+import MeetingPrompt from './MeetingPrompt'
 import styles from './Layout.module.css'
 
 export default function Layout() {
@@ -196,6 +197,9 @@ export default function Layout() {
       <main className={styles.main}>
         <Outlet />
       </main>
+
+      {/* Meeting detection popups (instant / auto-started / stopped) */}
+      <MeetingPrompt />
     </div>
   )
 }

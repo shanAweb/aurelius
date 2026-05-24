@@ -39,6 +39,8 @@ interface AppState {
   loadMeetings: () => Promise<void>
   startRecording: (title: string, calendarEventId?: string) => Promise<string>
   stopRecording: (meetingId: string) => Promise<void>
+  adoptActiveMeeting: (meetingId: string) => void
+  handleRecordingStopped: (meetingId: string) => void
   checkCalendar: () => Promise<void>
   connectCalendar: () => Promise<string>
   loadUpcomingEvents: () => Promise<void>
@@ -146,6 +148,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     await api.post(`/recording/stop/${meetingId}`, {})
     set({ activeMeetingId: null })
     await get().loadMeetings()
+  },
+
+  // Recording was started by the backend (calendar auto-start) — reflect it.
+  adoptActiveMeeting: (meetingId: string) => {
+    set({ activeMeetingId: meetingId })
+    get().loadMeetings()
+  },
+
+  // Recording ended (manual, silence auto-stop, etc.) — clear + refresh.
+  handleRecordingStopped: (meetingId: string) => {
+    if (get().activeMeetingId === meetingId) set({ activeMeetingId: null })
+    get().loadMeetings()
   },
 
   checkCalendar: async () => {

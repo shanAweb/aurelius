@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld('aurelius', {
     open: (url: string) => ipcRenderer.invoke('shell:open', url),
   },
 
+  // Native OS notifications (used when the window is hidden/in tray)
+  notify: {
+    show: (opts: { title: string; body: string }) => ipcRenderer.invoke('notify:show', opts),
+  },
+
   // Backend
   backend: {
     health: () => ipcRenderer.invoke('backend:health'),

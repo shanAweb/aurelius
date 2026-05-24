@@ -6,6 +6,7 @@ Captures both microphone and system audio simultaneously on macOS
 import asyncio
 import logging
 import threading
+import time
 import wave
 import tempfile
 import os
@@ -28,6 +29,10 @@ SAMPLE_RATE = 16000       # Whisper works best at 16kHz
 CHANNELS = 1              # Mono
 CHUNK_DURATION = 30       # seconds per chunk for streaming transcription
 DTYPE = np.float32
+
+# Audio below this RMS (on the [-1, 1] float stream) counts as silence. Used to
+# auto-detect that a meeting has ended ("voice totally gone").
+SILENCE_RMS_THRESHOLD = 0.01
 
 
 class AudioCaptureManager:
@@ -116,6 +121,7 @@ class AudioCaptureSession:
         self._chunk_index = 0
         self._stream: Optional[sd.InputStream] = None
         self._lock = threading.Lock()
+        self._last_voice_ts: float = 0.0  # monotonic time of last above-threshold audio
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.output_path = self.output_dir / f"meeting_{meeting_id}_{timestamp}.wav"
@@ -127,6 +133,7 @@ class AudioCaptureSession:
             raise RuntimeError("sounddevice library not available")
 
         self.is_recording = True
+        self._last_voice_ts = time.monotonic()
         device = self.blackhole_device_id  # None = default mic
 
         logger.info(
@@ -150,6 +157,10 @@ class AudioCaptureSession:
 
         audio_copy = indata.copy().flatten()
 
+        # Track voice activity for silence-based end-of-meeting detection.
+        if audio_copy.size and float(np.sqrt(np.mean(audio_copy ** 2))) >= SILENCE_RMS_THRESHOLD:
+            self._last_voice_ts = time.monotonic()
+
         with self._lock:
             self._frames.append(audio_copy)
             self._chunk_frames.append(audio_copy)
@@ -170,6 +181,12 @@ class AudioCaptureSession:
                         args=(chunk_audio, chunk_idx),
                         daemon=True,
                     ).start()
+
+    def seconds_since_voice(self) -> float:
+        """Seconds since audio last exceeded the silence threshold (0 if not recording)."""
+        if not self.is_recording or self._last_voice_ts == 0.0:
+            return 0.0
+        return time.monotonic() - self._last_voice_ts
 
     def _emit_chunk(self, audio: np.ndarray, chunk_idx: int):
         chunk_path = self.chunks_dir / f"chunk_{chunk_idx:04d}.wav"
