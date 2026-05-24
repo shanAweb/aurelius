@@ -25,7 +25,6 @@ from calendar_sync.google_calendar import CalendarSync  # noqa: E402
 from db.database import init_db  # noqa: E402
 from detection.meeting_detector import MeetingDetector  # noqa: E402
 from routes import meetings, recording, calendar, setup, health, auth, events  # noqa: E402
-from routes.events import broadcast_event  # noqa: E402
 from routes.recording import begin_recording  # noqa: E402
 
 DATA_DIR = Path(os.environ.get("AURELIUS_DATA", Path.home() / ".aurelius"))
@@ -57,13 +56,9 @@ async def lifespan(app: FastAPI):
         if manager.active_session and manager.active_session.is_recording:
             return  # already capturing
         try:
-            info = await begin_recording(app, title=event.title,
-                                         calendar_event_id=event.id, use_blackhole=True)
-            await broadcast_event({
-                "type": "meeting_autostarted",
-                "meeting_id": info["meeting_id"],
-                "title": event.title,
-            })
+            # begin_recording broadcasts recording_started, which drives the bar.
+            await begin_recording(app, title=event.title,
+                                  calendar_event_id=event.id, use_blackhole=True)
         except Exception as e:
             logger.error(f"Auto-start for calendar meeting failed: {e}")
 

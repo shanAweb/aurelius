@@ -131,6 +131,12 @@ async def begin_recording(app, title: str, calendar_event_id: Optional[str] = No
 
     await update_meeting(meeting_id, status="recording",
                          started_at=datetime.now(timezone.utc).isoformat())
+    await broadcast_event({
+        "type": "recording_started",
+        "meeting_id": meeting_id,
+        "title": title,
+        "source": "calendar" if calendar_event_id else "manual",
+    })
     logger.info(f"Recording started: {meeting_id} — '{title}'")
     return {"meeting_id": meeting_id, "status": "recording", "title": title}
 

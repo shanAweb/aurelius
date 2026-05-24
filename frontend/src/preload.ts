@@ -23,6 +23,14 @@ contextBridge.exposeInMainWorld('aurelius', {
     show: (opts: { title: string; body: string }) => ipcRenderer.invoke('notify:show', opts),
   },
 
+  // Floating meeting bar (always-on-top overlay, like Granola/Fireflies)
+  bar: {
+    show: () => ipcRenderer.invoke('bar:show'),
+    hide: () => ipcRenderer.invoke('bar:hide'),
+    resize: (height: number) => ipcRenderer.invoke('bar:resize', height),
+    openMain: () => ipcRenderer.invoke('bar:open-main'),
+  },
+
   // Backend
   backend: {
     health: () => ipcRenderer.invoke('backend:health'),

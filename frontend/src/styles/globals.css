@@ -116,5 +116,11 @@ h3 { font-size: 15px; }
   to { transform: rotate(360deg); }
 }
 
+/* Depleting countdown bar (instant-meeting offer auto-dismiss) */
+@keyframes bar-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 .animate-fade-in { animation: fade-in 0.3s ease forwards; }
 .animate-slide-in { animation: slide-in-right 0.25s ease forwards; }

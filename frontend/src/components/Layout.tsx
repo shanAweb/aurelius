@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Mic, Calendar, Clock, Settings, Plus, Circle, LogOut } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import { format, isToday, isYesterday } from 'date-fns'
-import MeetingPrompt from './MeetingPrompt'
+import MeetingEventsSync from './MeetingEventsSync'
 import styles from './Layout.module.css'
 
 export default function Layout() {
@@ -198,8 +198,8 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      {/* Meeting detection popups (instant / auto-started / stopped) */}
-      <MeetingPrompt />
+      {/* Keeps the sidebar / meeting list in sync with backend-driven recordings */}
+      <MeetingEventsSync />
     </div>
   )
 }
