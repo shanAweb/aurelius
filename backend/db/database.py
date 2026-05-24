@@ -4,9 +4,12 @@ Stores meetings, transcripts, notes, and settings locally.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import secrets
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -64,6 +67,17 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT,
+    password_hash TEXT,                         -- null for Google-only accounts
+    provider TEXT NOT NULL DEFAULT 'local',     -- 'local' | 'google'
+    picture TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_login_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_transcripts_meeting ON transcripts(meeting_id);
@@ -221,3 +235,112 @@ async def get_notes(meeting_id: str) -> Optional[dict]:
                 except Exception:
                     result[field] = []
             return result
+
+
+# ─── Settings (key/value) ─────────────────────────────────────────────────────
+
+async def set_setting(key: str, value: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO settings (key, value) VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+                                              updated_at = datetime('now')""",
+            (key, value),
+        )
+        await db.commit()
+
+
+async def get_setting(key: str) -> Optional[str]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT value FROM settings WHERE key = ?", (key,)) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else None
+
+
+async def delete_setting(key: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM settings WHERE key = ?", (key,))
+        await db.commit()
+
+
+# ─── Password hashing (PBKDF2, stdlib only) ───────────────────────────────────
+
+_PBKDF2_ITERATIONS = 200_000
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    return f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${salt.hex()}${dk.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        algo, iterations, salt_hex, hash_hex = stored.split("$")
+        if algo != "pbkdf2_sha256":
+            return False
+        dk = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), int(iterations)
+        )
+        return secrets.compare_digest(dk.hex(), hash_hex)
+    except Exception:
+        return False
+
+
+# ─── User CRUD ────────────────────────────────────────────────────────────────
+
+async def create_user(email: str, name: Optional[str], password_hash: Optional[str] = None,
+                       provider: str = "local", picture: Optional[str] = None) -> dict:
+    user_id = uuid.uuid4().hex
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await db.execute(
+            """INSERT INTO users (id, email, name, password_hash, provider, picture, last_login_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (user_id, email.lower(), name, password_hash, provider, picture),
+        )
+        await db.commit()
+        async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cur:
+            return dict(await cur.fetchone())
+
+
+async def get_user_by_email(email: str) -> Optional[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM users WHERE email = ?", (email.lower(),)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+
+async def get_user_by_id(user_id: str) -> Optional[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+
+async def touch_last_login(user_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE users SET last_login_at = datetime('now') WHERE id = ?", (user_id,))
+        await db.commit()
+
+
+async def upsert_google_user(email: str, name: Optional[str], picture: Optional[str]) -> dict:
+    """Create a Google-backed user, or update an existing account's profile + login time."""
+    existing = await get_user_by_email(email)
+    if existing:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """UPDATE users SET name = COALESCE(?, name),
+                                    picture = COALESCE(?, picture),
+                                    last_login_at = datetime('now')
+                   WHERE id = ?""",
+                (name, picture, existing["id"]),
+            )
+            await db.commit()
+            async with db.execute("SELECT * FROM users WHERE id = ?", (existing["id"],)) as cur:
+                return dict(await cur.fetchone())
+    return await create_user(email=email, name=name, password_hash=None,
+                             provider="google", picture=picture)

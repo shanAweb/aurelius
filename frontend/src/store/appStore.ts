@@ -12,7 +12,17 @@ interface Meeting {
   created_at: string
 }
 
+export interface User {
+  id: string
+  email: string
+  name: string | null
+  provider: 'local' | 'google'
+  picture: string | null
+}
+
 interface AppState {
+  user: User | null
+  authChecked: boolean
   setupComplete: boolean
   setupStatus: Record<string, any>
   meetings: Meeting[]
@@ -20,6 +30,11 @@ interface AppState {
   calendarConnected: boolean
   upcomingEvents: any[]
 
+  checkAuth: () => Promise<void>
+  login: (email: string, password: string) => Promise<void>
+  signup: (name: string, email: string, password: string) => Promise<void>
+  loginWithGoogle: () => Promise<void>
+  logout: () => Promise<void>
   checkSetup: () => Promise<void>
   loadMeetings: () => Promise<void>
   startRecording: (title: string, calendarEventId?: string) => Promise<string>
@@ -30,12 +45,74 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+  user: null,
+  authChecked: false,
   setupComplete: false,
   setupStatus: {},
   meetings: [],
   activeMeetingId: null,
   calendarConnected: false,
   upcomingEvents: [],
+
+  checkAuth: async () => {
+    try {
+      const { user } = await api.get('/auth/me')
+      set({ user, authChecked: true })
+    } catch {
+      set({ user: null, authChecked: true })
+    }
+  },
+
+  login: async (email: string, password: string) => {
+    const { user } = await api.post('/auth/login', { email, password })
+    set({ user })
+  },
+
+  signup: async (name: string, email: string, password: string) => {
+    const { user } = await api.post('/auth/signup', { name, email, password })
+    set({ user })
+  },
+
+  loginWithGoogle: async () => {
+    const { auth_url } = await api.post('/auth/google', {})
+
+    // Open Google's consent screen in the system browser.
+    const shell = (window as any).aurelius?.shell
+    if (shell) shell.open(auth_url)
+    else window.open(auth_url, '_blank')
+
+    // The backend creates the session once the OAuth callback fires; poll for it.
+    await new Promise<void>((resolve, reject) => {
+      let tries = 0
+      const interval = setInterval(async () => {
+        tries++
+        try {
+          const { user } = await api.get('/auth/me')
+          if (user) {
+            clearInterval(interval)
+            // Google sign-in also granted calendar access — reflect it.
+            set({ user, calendarConnected: true })
+            resolve()
+            return
+          }
+        } catch {
+          /* ignore transient polling errors */
+        }
+        if (tries >= 80) {
+          clearInterval(interval)
+          reject(new Error('Timed out waiting for Google sign-in. Please try again.'))
+        }
+      }, 1500)
+    })
+  },
+
+  logout: async () => {
+    try {
+      await api.post('/auth/logout', {})
+    } finally {
+      set({ user: null, calendarConnected: false, upcomingEvents: [] })
+    }
+  },
 
   checkSetup: async () => {
     try {

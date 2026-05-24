@@ -6,13 +6,15 @@ import SetupFlow from './pages/SetupFlow'
 import Dashboard from './pages/Dashboard'
 import MeetingDetail from './pages/MeetingDetail'
 import RecordingPage from './pages/RecordingPage'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
 
 export default function App() {
-  const { setupComplete, checkSetup } = useAppStore()
+  const { user, setupComplete, checkAuth, checkSetup } = useAppStore()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    checkSetup().finally(() => setLoading(false))
+    Promise.all([checkAuth(), checkSetup()]).finally(() => setLoading(false))
   }, [])
 
   if (loading) {
@@ -27,21 +29,34 @@ export default function App() {
     )
   }
 
+  // Gate: not signed in → auth pages; signed in but not set up → setup; else app.
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    )
+  }
+
+  if (!setupComplete) {
+    return (
+      <Routes>
+        <Route path="/setup" element={<SetupFlow />} />
+        <Route path="*" element={<Navigate to="/setup" replace />} />
+      </Routes>
+    )
+  }
+
   return (
     <Routes>
-      {!setupComplete ? (
-        <>
-          <Route path="/setup" element={<SetupFlow />} />
-          <Route path="*" element={<Navigate to="/setup" replace />} />
-        </>
-      ) : (
-        <Route element={<Layout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/meeting/:id" element={<MeetingDetail />} />
-          <Route path="/recording/:id" element={<RecordingPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      )}
+      <Route element={<Layout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/meeting/:id" element={<MeetingDetail />} />
+        <Route path="/recording/:id" element={<RecordingPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
     </Routes>
   )
 }

@@ -8,15 +8,22 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
-from audio.capture import AudioCaptureManager
+# Load backend/.env first, so modules that read env vars at import time
+# (e.g. Google OAuth client id/secret, AURELIUS_DATA) see the values.
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+import uvicorn  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+
+from audio.capture import AudioCaptureManager  # noqa: E402
 from calendar_sync.google_calendar import CalendarSync
 from db.database import init_db
-from routes import meetings, recording, calendar, setup, health
+from routes import meetings, recording, calendar, setup, health, auth
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +72,7 @@ app.add_middleware(
 
 # Register route modules
 app.include_router(health.router)
+app.include_router(auth.router, prefix="/auth")
 app.include_router(meetings.router, prefix="/meetings")
 app.include_router(recording.router, prefix="/recording")
 app.include_router(calendar.router, prefix="/calendar")

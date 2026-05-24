@@ -24,7 +24,13 @@ function startBackend() {
   console.log('[Main] Starting backend at:', backendPath)
 
   if (isDev) {
-    backendProcess = spawn('python3', [backendPath], {
+    // Run from inside backend/ (package-relative imports) using the venv
+    // Python so the installed deps are available. Falls back to python3.
+    const backendDir = path.dirname(backendPath)
+    const venvPython = path.join(backendDir, 'aurenv', 'bin', 'python')
+    const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3'
+    backendProcess = spawn(pythonBin, ['main.py'], {
+      cwd: backendDir,
       env: { ...process.env, PYTHONUNBUFFERED: '1' },
       stdio: ['pipe', 'pipe', 'pipe'],
     })

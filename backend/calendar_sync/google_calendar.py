@@ -22,7 +22,20 @@ from googleapiclient.errors import HttpError
 
 logger = logging.getLogger("aurelius.calendar")
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+# OAuth runs against a loopback (http://localhost) redirect and requests both
+# identity and calendar scopes. Relax oauthlib's https-only and exact-scope
+# checks, which otherwise reject loopback redirects and Google's scope echo.
+os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
+# Identity scopes let "Continue with Google" double as sign-in; the calendar
+# scope is granted in the same consent, so the account is synced automatically.
+SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/calendar.readonly",
+]
 REDIRECT_PORT = 8766
 REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}/oauth/callback"
 
@@ -125,6 +138,12 @@ class CalendarSync:
             except Exception as e:
                 logger.warning(f"Failed to load saved credentials: {e}")
 
+    def reload_credentials(self):
+        """Re-read the saved token (e.g. after the auth flow wrote a new one)."""
+        self._creds = None
+        self._service = None
+        self._load_credentials()
+
     def _save_token(self):
         if self._creds:
             TOKEN_FILE.write_text(self._creds.to_json())
@@ -137,10 +156,26 @@ class CalendarSync:
 
     async def start_oauth_flow(self) -> str:
         """
-        Initiates OAuth2 flow. Returns auth URL for user to open.
-        Listens on localhost for callback.
+        Connect-calendar flow (user is already signed in). Returns auth URL.
         """
+        return await self._begin_flow(on_complete=None)
+
+    async def start_login_flow(self, on_complete) -> str:
+        """
+        "Continue with Google" sign-in. Same consent grants calendar access,
+        so the account is synced automatically. `on_complete(userinfo)` is
+        awaited once the token is exchanged.
+        """
+        return await self._begin_flow(on_complete=on_complete)
+
+    async def _begin_flow(self, on_complete=None) -> str:
         client_config = self._get_client_config()
+        section = client_config.get("installed") or client_config.get("web") or {}
+        if not section.get("client_id"):
+            raise RuntimeError(
+                "No Google OAuth client configured. Set AURELIUS_GOOGLE_CLIENT_ID / "
+                "AURELIUS_GOOGLE_CLIENT_SECRET or drop google_credentials.json in ~/.aurelius."
+            )
         flow = Flow.from_client_config(
             client_config,
             scopes=SCOPES,
@@ -153,10 +188,10 @@ class CalendarSync:
         )
 
         # Start local callback server
-        asyncio.create_task(self._run_callback_server(flow))
+        asyncio.create_task(self._run_callback_server(flow, on_complete))
         return auth_url
 
-    async def _run_callback_server(self, flow: Flow):
+    async def _run_callback_server(self, flow: Flow, on_complete=None):
         """Runs a temporary local HTTP server to catch the OAuth callback."""
         result_code: list[Optional[str]] = [None]
 
@@ -190,22 +225,30 @@ class CalendarSync:
 
         if result_code[0]:
             try:
-                flow.fetch_token(code=result_code[0])
+                await loop.run_in_executor(None, lambda: flow.fetch_token(code=result_code[0]))
                 self._creds = flow.credentials
                 self._save_token()
                 self._build_service()
-                logger.info("Google Calendar OAuth completed successfully")
+                logger.info("Google OAuth completed successfully")
+                if on_complete is not None:
+                    userinfo = await loop.run_in_executor(None, self._fetch_userinfo)
+                    await on_complete(userinfo)
             except Exception as e:
                 logger.error(f"OAuth token exchange failed: {e}")
+
+    def _fetch_userinfo(self) -> dict:
+        """Fetch the signed-in Google account's profile (id, email, name, picture)."""
+        oauth2 = build("oauth2", "v2", credentials=self._creds, cache_discovery=False)
+        return oauth2.userinfo().get().execute()
 
     def _get_client_config(self) -> dict:
         if CREDENTIALS_FILE.exists():
             return json.loads(CREDENTIALS_FILE.read_text())
-        # Use bundled client credentials
+        # Read at call time so values from backend/.env (loaded at startup) apply.
         return {
             "installed": {
-                "client_id": BUNDLED_CLIENT_ID,
-                "client_secret": BUNDLED_CLIENT_SECRET,
+                "client_id": os.environ.get("AURELIUS_GOOGLE_CLIENT_ID", ""),
+                "client_secret": os.environ.get("AURELIUS_GOOGLE_CLIENT_SECRET", ""),
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "redirect_uris": [REDIRECT_URI],

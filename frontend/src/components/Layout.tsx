@@ -1,12 +1,12 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Mic, Calendar, Clock, Settings, Plus, Circle } from 'lucide-react'
+import { Mic, Calendar, Clock, Settings, Plus, Circle, LogOut } from 'lucide-react'
 import { useAppStore } from '../store/appStore'
 import { format, isToday, isYesterday } from 'date-fns'
 import styles from './Layout.module.css'
 
 export default function Layout() {
-  const { meetings, activeMeetingId, loadMeetings, startRecording, stopRecording, upcomingEvents, loadUpcomingEvents, calendarConnected } = useAppStore()
+  const { user, logout, meetings, activeMeetingId, loadMeetings, startRecording, stopRecording, upcomingEvents, loadUpcomingEvents, calendarConnected } = useAppStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [showNewMeeting, setShowNewMeeting] = useState(false)
@@ -151,6 +151,45 @@ export default function Layout() {
             <Calendar size={14} />
             {calendarConnected ? 'Calendar' : 'Connect Calendar'}
           </button>
+
+          {/* Signed-in user + logout */}
+          {user && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8,
+              borderTop: '1px solid var(--border-subtle)',
+            }}>
+              {user.picture ? (
+                <img src={user.picture} alt="" style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0 }} />
+              ) : (
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                  background: 'var(--accent-dim)', color: 'var(--accent)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+                }}>
+                  {(user.name || user.email || '?').trim().charAt(0)}
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 12, color: 'var(--text-primary)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {user.name || user.email}
+                </div>
+              </div>
+              <button
+                onClick={() => logout()}
+                title="Sign out"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-tertiary)', display: 'flex', padding: 4,
+                }}
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 

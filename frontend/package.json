@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:electron\" \"npm run dev:react\"",
     "dev:react": "vite",
-    "dev:electron": "tsc -p tsconfig.electron.json && electron .",
+    "dev:electron": "tsc -p tsconfig.electron.json && NODE_ENV=development electron .",
     "build": "vite build && tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac"

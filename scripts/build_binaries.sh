@@ -8,6 +8,13 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 BIN_DIR="$ROOT_DIR/resources/bin"
 BUILD_TMP="$ROOT_DIR/build/tmp"
 
+# Build for the host architecture. A forced universal (arm64;x86_64) build
+# fails to link on Intel Macs because Homebrew OpenSSL (needed by llama.cpp's
+# HTTPS support) is single-arch. Override with ARCH=... for a universal build
+# only if you have universal OpenSSL installed.
+ARCH="${ARCH:-$(uname -m)}"
+echo "Target architecture: $ARCH"
+
 mkdir -p "$BIN_DIR" "$BUILD_TMP"
 
 echo "=== Building Aurelius native binaries ==="
@@ -27,7 +34,7 @@ cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DWHISPER_METAL=ON \
   -DWHISPER_NO_AVX=OFF \
-  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+  -DCMAKE_OSX_ARCHITECTURES="$ARCH"
 cmake --build build --config Release -j$(sysctl -n hw.logicalcpu)
 
 cp build/bin/main "$BIN_DIR/whisper-cpp"
@@ -46,7 +53,7 @@ cd llama.cpp
 cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DLLAMA_METAL=ON \
-  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+  -DCMAKE_OSX_ARCHITECTURES="$ARCH"
 cmake --build build --config Release --target llama-cli -j$(sysctl -n hw.logicalcpu)
 
 cp build/bin/llama-cli "$BIN_DIR/llama-cli"
